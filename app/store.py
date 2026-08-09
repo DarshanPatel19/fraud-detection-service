@@ -3,14 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import threading
 import uuid
-from collections import deque
 from datetime import datetime, timezone
 from typing import Any
 
 import psycopg
 from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
 
 from app.models import TransactionRequest, TransactionResponse
 
@@ -68,47 +67,17 @@ class StoreConflictError(Exception):
     pass
 
 
-class SimpleConnectionPool:
-    def __init__(self, conninfo: str, size: int = 5) -> None:
-        self._conninfo = conninfo
-        self._size = size
-        self._connections: deque[psycopg.Connection] = deque()
-        self._lock = threading.Lock()
-        for _ in range(size):
-            self._connections.append(psycopg.connect(conninfo))
-
-    def borrow(self) -> psycopg.Connection:
-        with self._lock:
-            if self._connections:
-                return self._connections.popleft()
-        return psycopg.connect(self._conninfo)
-
-    def release(self, connection: psycopg.Connection) -> None:
-        with self._lock:
-            self._connections.append(connection)
-
-    def close(self) -> None:
-        with self._lock:
-            while self._connections:
-                conn = self._connections.popleft()
-                conn.close()
-
-
 class PostgresStore:
-    def __init__(self) -> None:
-        self._database_url = os.environ.get("DATABASE_URL", "postgresql://darshanpatel@localhost:5432/fraud")
-        self._pool = SimpleConnectionPool(self._database_url, size=5)
+    def __init__(self, pool: ConnectionPool) -> None:
+        self._pool = pool
         self._initialize_schema()
 
     def _initialize_schema(self) -> None:
-        connection = self._pool.borrow()
-        try:
+        with self._pool.connection() as connection:
             with connection.cursor() as cur:
                 for statement in SCHEMA_STATEMENTS:
                     cur.execute(statement)
             connection.commit()
-        finally:
-            self._pool.release(connection)
 
     def score_transaction(self, req: TransactionRequest) -> TransactionResponse:
         request_hash = _request_hash(req.model_dump())
@@ -123,8 +92,7 @@ class PostgresStore:
         }
         created_at = datetime.now(timezone.utc)
 
-        connection = self._pool.borrow()
-        try:
+        with self._pool.connection() as connection:
             with connection.cursor() as cur:
                 cur.execute(
                     """
@@ -200,11 +168,6 @@ class PostgresStore:
                 )
                 connection.commit()
                 return TransactionResponse(**response_body)
-        except Exception:
-            connection.rollback()
-            raise
-        finally:
-            self._pool.release(connection)
 
 
 def _request_hash(payload: dict[str, Any]) -> str:
