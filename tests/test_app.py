@@ -144,6 +144,54 @@ def test_concurrent_requests_with_same_key_create_one_decision() -> None:
     assert idempotency_count == 1
 
 
+def test_score_transaction_persists_feature_values_from_redis() -> None:
+    previous_db = os.environ.get("REDIS_DB")
+    os.environ["REDIS_DB"] = "15"
+    try:
+        redis.Redis(host="127.0.0.1", port=6379, db=15, decode_responses=True).flushdb()
+
+        payload = {
+            "transaction_id": f"txn_feature_{uuid.uuid4().hex[:8]}",
+            "idempotency_key": f"key_feature_{uuid.uuid4().hex[:8]}",
+            "user_id": "u_1042",
+            "amount_minor": 84900,
+            "currency": "USD",
+            "merchant_id": "m_552",
+            "merchant_category": "electronics",
+            "device_id": "d_77",
+            "ip_country": "US",
+            "timestamp": "2026-08-08T14:22:31Z",
+        }
+
+        with TestClient(app) as client:
+            response = client.post("/v1/transactions/score", json=payload)
+
+        assert response.status_code == 200
+
+        database_url = os.environ.get("DATABASE_URL", "postgresql://darshanpatel@localhost:5432/fraud")
+        with psycopg.connect(database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT features FROM decisions WHERE transaction_id = %s",
+                    (payload["transaction_id"],),
+                )
+                row = cur.fetchone()
+
+        assert row is not None
+        features = row[0]
+        assert features["velocity_1h"] == 1
+        assert features["velocity_24h"] == 1
+        assert features["merchant_new"] is True
+        assert features["device_new"] is True
+        assert features["country_new"] is True
+        assert "amount_zscore" in features
+    finally:
+        if previous_db is None:
+            os.environ.pop("REDIS_DB", None)
+        else:
+            os.environ["REDIS_DB"] = previous_db
+
+
 def test_redis_feature_store_tracks_velocity_deviation_and_novelty() -> None:
     client = redis.Redis(host="127.0.0.1", port=6379, db=15, decode_responses=True)
     client.flushdb()

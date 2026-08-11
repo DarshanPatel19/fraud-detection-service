@@ -11,6 +11,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
+from app.feature_store import FeatureStore
 from app.models import TransactionRequest, TransactionResponse
 
 SCHEMA_STATEMENTS = [
@@ -68,8 +69,9 @@ class StoreConflictError(Exception):
 
 
 class PostgresStore:
-    def __init__(self, pool: ConnectionPool) -> None:
+    def __init__(self, pool: ConnectionPool, feature_store: FeatureStore | None = None) -> None:
         self._pool = pool
+        self._feature_store = feature_store or FeatureStore()
         self._initialize_schema()
 
     def _initialize_schema(self) -> None:
@@ -82,6 +84,15 @@ class PostgresStore:
     def score_transaction(self, req: TransactionRequest) -> TransactionResponse:
         request_hash = _request_hash(req.model_dump())
         decision_id = f"dec_{uuid.uuid4().hex[:12]}"
+        feature_values = self._feature_store.compute_features(
+            user_id=req.user_id,
+            transaction_id=req.transaction_id,
+            amount_minor=req.amount_minor,
+            merchant_id=req.merchant_id,
+            device_id=req.device_id,
+            ip_country=req.ip_country,
+            timestamp=int(req.timestamp.timestamp()),
+        )
         response_body = {
             "decision_id": decision_id,
             "decision": "review",
@@ -160,7 +171,7 @@ class PostgresStore:
                         response_body["score"],
                         response_body["stage"],
                         Jsonb(["velocity_1h_exceeded", "new_merchant_for_user"]),
-                        Jsonb({"amount_minor": req.amount_minor, "merchant_category": req.merchant_category}),
+                        Jsonb(feature_values),
                         "v0.1",
                         response_body["latency_ms"],
                         created_at,
