@@ -3,8 +3,10 @@ import threading
 import uuid
 
 import psycopg
+import redis
 from fastapi.testclient import TestClient
 
+from app.feature_store import FeatureStore
 from app.main import TransactionRequest, app
 
 
@@ -140,5 +142,42 @@ def test_concurrent_requests_with_same_key_create_one_decision() -> None:
 
     assert decision_count == 1
     assert idempotency_count == 1
+
+
+def test_redis_feature_store_tracks_velocity_deviation_and_novelty() -> None:
+    client = redis.Redis(host="127.0.0.1", port=6379, db=15, decode_responses=True)
+    client.flushdb()
+    store = FeatureStore(client=redis.Redis(host="127.0.0.1", port=6379, db=15, decode_responses=True))
+
+    first = store.compute_features(
+        user_id="u_1042",
+        transaction_id="txn_1",
+        amount_minor=1000,
+        merchant_id="m_001",
+        device_id="d_001",
+        ip_country="US",
+        timestamp=1_700_000_000,
+    )
+    second = store.compute_features(
+        user_id="u_1042",
+        transaction_id="txn_2",
+        amount_minor=2000,
+        merchant_id="m_001",
+        device_id="d_001",
+        ip_country="US",
+        timestamp=1_700_000_100,
+    )
+
+    assert first["velocity_1h"] == 1
+    assert first["velocity_24h"] == 1
+    assert first["merchant_new"] is True
+    assert first["device_new"] is True
+    assert first["country_new"] is True
+    assert second["velocity_1h"] == 2
+    assert second["velocity_24h"] == 2
+    assert second["merchant_new"] is False
+    assert second["device_new"] is False
+    assert second["country_new"] is False
+    assert second["amount_zscore"] == 1.0
 
 
