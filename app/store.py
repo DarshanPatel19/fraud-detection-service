@@ -13,6 +13,7 @@ from psycopg_pool import ConnectionPool
 
 from app.feature_store import FeatureStore
 from app.model import ModelArtifact
+from app.circuit_breaker import CircuitOpenError, CircuitBreaker, ModelTimeoutError
 from app.models import TransactionRequest, TransactionResponse
 from app.rules import RulesEngine
 
@@ -74,11 +75,18 @@ class StoreConflictError(Exception):
 
 
 class PostgresStore:
-    def __init__(self, pool: ConnectionPool, feature_store: FeatureStore | None = None, model: ModelArtifact | None = None) -> None:
+    def __init__(
+        self,
+        pool: ConnectionPool,
+        feature_store: FeatureStore | None = None,
+        model: ModelArtifact | None = None,
+        model_breaker: CircuitBreaker | None = None,
+    ) -> None:
         self._pool = pool
         self._feature_store = feature_store or FeatureStore()
         self._rules = RulesEngine()
         self._model = model
+        self._model_breaker = model_breaker
         self._initialize_schema()
 
     def _initialize_schema(self) -> None:
@@ -106,16 +114,28 @@ class PostgresStore:
         if rule_result["stage"] == "model":
             if self._model is None:
                 raise RuntimeError("model is not available for model-stage scoring")
-            score = self._model.predict_probability(feature_values)
-            model_version = self._model.version
-            response_body = {
-                "decision_id": decision_id,
-                "decision": "review" if score >= self._model.threshold else "approve",
-                "score": score,
-                "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
-                "stage": rule_result["stage"],
-                "latency_ms": 18,
-            }
+            if self._model_breaker is None:
+                raise RuntimeError("model breaker is not configured")
+            try:
+                score = self._model_breaker.call(self._model.predict_probability, feature_values)
+                model_version = self._model.version
+                response_body = {
+                    "decision_id": decision_id,
+                    "decision": "review" if score >= self._model.threshold else "approve",
+                    "score": score,
+                    "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+                    "stage": rule_result["stage"],
+                    "latency_ms": 18,
+                }
+            except (CircuitOpenError, ModelTimeoutError):
+                response_body = {
+                    "decision_id": decision_id,
+                    "decision": rule_result["decision"],
+                    "score": None,
+                    "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+                    "stage": "rules_fallback",
+                    "latency_ms": 18,
+                }
         else:
             response_body = {
                 "decision_id": decision_id,
