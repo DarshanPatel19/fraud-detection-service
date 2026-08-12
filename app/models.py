@@ -21,7 +21,7 @@ class TransactionRequest(BaseModel):
 class TransactionResponse(BaseModel):
     decision_id: str
     decision: str
-    score: float
+    score: float | None
     reasons: list[str]
     stage: str
     latency_ms: int

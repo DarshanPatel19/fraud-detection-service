@@ -1,0 +1,72 @@
+[
+  {
+    "name": "blocked_country",
+    "outcome": "hard_decline",
+    "reason": "blocked_country",
+    "when": {"field": "ip_country", "op": "in", "value": ["KP", "IR", "SY"]}
+  },
+  {
+    "name": "amount_ceiling",
+    "outcome": "hard_decline",
+    "reason": "amount_above_ceiling",
+    "when": {"field": "amount_minor", "op": "gt", "value": 100000}
+  },
+  {
+    "name": "known_bad_device",
+    "outcome": "hard_decline",
+    "reason": "known_bad_device",
+    "when": {"field": "device_id", "op": "in", "value": ["d_666", "d_999"]}
+  },
+  {
+    "name": "trusted_user",
+    "outcome": "hard_approve",
+    "reason": "trusted_user",
+    "when": {"field": "user_id", "op": "in", "value": ["u_1001", "u_1002"]}
+  },
+  {
+    "name": "small_amount",
+    "outcome": "hard_approve",
+    "reason": "small_amount",
+    "when": {"field": "amount_minor", "op": "lt", "value": 1000}
+  },
+  {
+    "name": "established_merchant",
+    "outcome": "hard_approve",
+    "reason": "established_merchant",
+    "when": {
+      "all": [
+        {"field": "merchant_new", "op": "eq", "value": false},
+        {"field": "velocity_24h", "op": "gte", "value": 5}
+      ]
+    }
+  },
+  {
+    "name": "velocity_spike",
+    "outcome": "flag",
+    "reason": "velocity_1h_exceeded",
+    "when": {"field": "velocity_1h", "op": "gte", "value": 5}
+  },
+  {
+    "name": "amount_zscore",
+    "outcome": "flag",
+    "reason": "amount_zscore_high",
+    "when": {"field": "amount_zscore", "op": "gte", "value": 3.0}
+  },
+  {
+    "name": "new_merchant_for_user",
+    "outcome": "flag",
+    "reason": "new_merchant_for_user",
+    "when": {"field": "merchant_new", "op": "eq", "value": true}
+  },
+  {
+    "name": "new_device_or_country",
+    "outcome": "flag",
+    "reason": "new_device_or_country",
+    "when": {
+      "any": [
+        {"field": "device_new", "op": "eq", "value": true},
+        {"field": "country_new", "op": "eq", "value": true}
+      ]
+    }
+  }
+]

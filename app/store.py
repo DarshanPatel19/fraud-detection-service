@@ -13,6 +13,7 @@ from psycopg_pool import ConnectionPool
 
 from app.feature_store import FeatureStore
 from app.models import TransactionRequest, TransactionResponse
+from app.rules import RulesEngine
 
 SCHEMA_STATEMENTS = [
     """
@@ -41,7 +42,7 @@ SCHEMA_STATEMENTS = [
         decision_id TEXT PRIMARY KEY,
         transaction_id TEXT NOT NULL,
         decision TEXT NOT NULL,
-        score DOUBLE PRECISION NOT NULL,
+        score DOUBLE PRECISION,
         stage TEXT NOT NULL,
         rule_hits JSONB,
         features JSONB,
@@ -49,6 +50,9 @@ SCHEMA_STATEMENTS = [
         latency_ms INTEGER NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+    """,
+    """
+    ALTER TABLE IF EXISTS decisions ALTER COLUMN score DROP NOT NULL
     """,
     """
     CREATE TABLE IF NOT EXISTS failed_events (
@@ -72,6 +76,7 @@ class PostgresStore:
     def __init__(self, pool: ConnectionPool, feature_store: FeatureStore | None = None) -> None:
         self._pool = pool
         self._feature_store = feature_store or FeatureStore()
+        self._rules = RulesEngine()
         self._initialize_schema()
 
     def _initialize_schema(self) -> None:
@@ -93,12 +98,13 @@ class PostgresStore:
             ip_country=req.ip_country,
             timestamp=int(req.timestamp.timestamp()),
         )
+        rule_result = self._rules.evaluate(req.model_dump(), feature_values)
         response_body = {
             "decision_id": decision_id,
-            "decision": "review",
-            "score": 0.62,
-            "reasons": ["velocity_1h_exceeded", "new_merchant_for_user"],
-            "stage": "model",
+            "decision": rule_result["decision"],
+            "score": None if rule_result["stage"] == "rules" else 0.62,
+            "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+            "stage": rule_result["stage"],
             "latency_ms": 18,
         }
         created_at = datetime.now(timezone.utc)
@@ -170,7 +176,7 @@ class PostgresStore:
                         response_body["decision"],
                         response_body["score"],
                         response_body["stage"],
-                        Jsonb(["velocity_1h_exceeded", "new_merchant_for_user"]),
+                        Jsonb(rule_result["reasons"]),
                         Jsonb(feature_values),
                         "v0.1",
                         response_body["latency_ms"],

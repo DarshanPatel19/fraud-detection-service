@@ -3,11 +3,18 @@ import threading
 import uuid
 
 import psycopg
+import pytest
 import redis
 from fastapi.testclient import TestClient
 
 from app.feature_store import FeatureStore
 from app.main import TransactionRequest, app
+
+
+@pytest.fixture(autouse=True)
+def clear_test_redis() -> None:
+    client = redis.Redis(host="127.0.0.1", port=6379, db=15, decode_responses=True)
+    client.flushdb()
 
 
 def test_health_check() -> None:
@@ -22,8 +29,8 @@ def test_score_transaction() -> None:
     payload = {
         "transaction_id": f"txn_{uuid.uuid4().hex[:8]}",
         "idempotency_key": f"key_{uuid.uuid4().hex[:8]}",
-        "user_id": "u_1042",
-        "amount_minor": 84900,
+        "user_id": "u_1001",
+        "amount_minor": 750,
         "currency": "USD",
         "merchant_id": "m_552",
         "merchant_category": "electronics",
@@ -36,9 +43,83 @@ def test_score_transaction() -> None:
         response = client.post("/v1/transactions/score", json=payload)
 
     assert response.status_code == 200
+    assert response.json()["decision"] == "approve"
+    assert response.json()["stage"] == "rules"
+    assert response.json()["reasons"] == ["trusted_user"]
+    assert response.json()["score"] is None
+    assert response.json()["latency_ms"] == 18
+
+
+def test_rules_engine_hard_decline_short_circuits() -> None:
+    payload = {
+        "transaction_id": f"txn_decline_{uuid.uuid4().hex[:8]}",
+        "idempotency_key": f"key_decline_{uuid.uuid4().hex[:8]}",
+        "user_id": f"u_{uuid.uuid4().hex[:8]}",
+        "amount_minor": 200000,
+        "currency": "USD",
+        "merchant_id": f"m_{uuid.uuid4().hex[:8]}",
+        "merchant_category": "electronics",
+        "device_id": f"d_{uuid.uuid4().hex[:8]}",
+        "ip_country": "US",
+        "timestamp": "2026-08-08T14:22:31Z",
+    }
+
+    with TestClient(app) as client:
+        response = client.post("/v1/transactions/score", json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["decision"] == "decline"
+    assert response.json()["stage"] == "rules"
+    assert response.json()["reasons"] == ["amount_above_ceiling"]
+    assert response.json()["score"] is None
+
+
+def test_rules_engine_hard_approve_short_circuits() -> None:
+    payload = {
+        "transaction_id": f"txn_approve_{uuid.uuid4().hex[:8]}",
+        "idempotency_key": f"key_approve_{uuid.uuid4().hex[:8]}",
+        "user_id": "u_1001",
+        "amount_minor": 250,
+        "currency": "USD",
+        "merchant_id": "m_552",
+        "merchant_category": "electronics",
+        "device_id": "d_77",
+        "ip_country": "US",
+        "timestamp": "2026-08-08T14:22:31Z",
+    }
+
+    with TestClient(app) as client:
+        response = client.post("/v1/transactions/score", json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["decision"] == "approve"
+    assert response.json()["stage"] == "rules"
+    assert response.json()["reasons"] == ["trusted_user"]
+    assert response.json()["score"] is None
+
+
+def test_rules_engine_flag_routes_to_model_stage() -> None:
+    payload = {
+        "transaction_id": f"txn_flag_{uuid.uuid4().hex[:8]}",
+        "idempotency_key": f"key_flag_{uuid.uuid4().hex[:8]}",
+        "user_id": f"u_{uuid.uuid4().hex[:8]}",
+        "amount_minor": 5000,
+        "currency": "USD",
+        "merchant_id": f"m_{uuid.uuid4().hex[:8]}",
+        "merchant_category": "electronics",
+        "device_id": f"d_{uuid.uuid4().hex[:8]}",
+        "ip_country": "US",
+        "timestamp": "2026-08-08T14:22:31Z",
+    }
+
+    with TestClient(app) as client:
+        response = client.post("/v1/transactions/score", json=payload)
+
+    assert response.status_code == 200
     assert response.json()["decision"] == "review"
     assert response.json()["stage"] == "model"
-    assert response.json()["latency_ms"] == 18
+    assert response.json()["reasons"] == ["new_merchant_for_user"]
+    assert response.json()["score"] == 0.62
 
 
 def test_replays_identical_request_with_same_idempotency_key() -> None:
