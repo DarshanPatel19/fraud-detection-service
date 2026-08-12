@@ -119,7 +119,9 @@ def test_rules_engine_flag_routes_to_model_stage() -> None:
     assert response.json()["decision"] == "review"
     assert response.json()["stage"] == "model"
     assert response.json()["reasons"] == ["new_merchant_for_user"]
-    assert response.json()["score"] == 0.62
+    score = response.json()["score"]
+    assert isinstance(score, float)
+    assert 0.0 <= score <= 1.0
 
 
 def test_replays_identical_request_with_same_idempotency_key() -> None:

@@ -12,6 +12,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from app.feature_store import FeatureStore
+from app.model import ModelArtifact
 from app.models import TransactionRequest, TransactionResponse
 from app.rules import RulesEngine
 
@@ -73,10 +74,11 @@ class StoreConflictError(Exception):
 
 
 class PostgresStore:
-    def __init__(self, pool: ConnectionPool, feature_store: FeatureStore | None = None) -> None:
+    def __init__(self, pool: ConnectionPool, feature_store: FeatureStore | None = None, model: ModelArtifact | None = None) -> None:
         self._pool = pool
         self._feature_store = feature_store or FeatureStore()
         self._rules = RulesEngine()
+        self._model = model
         self._initialize_schema()
 
     def _initialize_schema(self) -> None:
@@ -99,14 +101,30 @@ class PostgresStore:
             timestamp=int(req.timestamp.timestamp()),
         )
         rule_result = self._rules.evaluate(req.model_dump(), feature_values)
-        response_body = {
-            "decision_id": decision_id,
-            "decision": rule_result["decision"],
-            "score": None if rule_result["stage"] == "rules" else 0.62,
-            "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
-            "stage": rule_result["stage"],
-            "latency_ms": 18,
-        }
+        model_version = None
+        score = None
+        if rule_result["stage"] == "model":
+            if self._model is None:
+                raise RuntimeError("model is not available for model-stage scoring")
+            score = self._model.predict_probability(feature_values)
+            model_version = self._model.version
+            response_body = {
+                "decision_id": decision_id,
+                "decision": "review" if score >= self._model.threshold else "approve",
+                "score": score,
+                "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+                "stage": rule_result["stage"],
+                "latency_ms": 18,
+            }
+        else:
+            response_body = {
+                "decision_id": decision_id,
+                "decision": rule_result["decision"],
+                "score": None,
+                "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+                "stage": rule_result["stage"],
+                "latency_ms": 18,
+            }
         created_at = datetime.now(timezone.utc)
 
         with self._pool.connection() as connection:
@@ -178,7 +196,7 @@ class PostgresStore:
                         response_body["stage"],
                         Jsonb(rule_result["reasons"]),
                         Jsonb(feature_values),
-                        "v0.1",
+                        model_version,
                         response_body["latency_ms"],
                         created_at,
                     ),
