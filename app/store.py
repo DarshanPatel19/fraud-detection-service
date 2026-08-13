@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -49,12 +50,15 @@ SCHEMA_STATEMENTS = [
         rule_hits JSONB,
         features JSONB,
         model_version TEXT,
-        latency_ms INTEGER NOT NULL,
+        latency_ms DOUBLE PRECISION NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
     """,
     """
     ALTER TABLE IF EXISTS decisions ALTER COLUMN score DROP NOT NULL
+    """,
+    """
+    ALTER TABLE IF EXISTS decisions ALTER COLUMN latency_ms TYPE DOUBLE PRECISION USING latency_ms
     """,
     """
     CREATE TABLE IF NOT EXISTS failed_events (
@@ -111,31 +115,38 @@ class PostgresStore:
         rule_result = self._rules.evaluate(req.model_dump(), feature_values)
         model_version = None
         score = None
+        start_time = time.perf_counter()
         if rule_result["stage"] == "model":
-            if self._model is None:
-                raise RuntimeError("model is not available for model-stage scoring")
-            if self._model_breaker is None:
-                raise RuntimeError("model breaker is not configured")
-            try:
-                score = self._model_breaker.call(self._model.predict_probability, feature_values)
-                model_version = self._model.version
-                response_body = {
-                    "decision_id": decision_id,
-                    "decision": "review" if score >= self._model.threshold else "approve",
-                    "score": score,
-                    "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
-                    "stage": rule_result["stage"],
-                    "latency_ms": 18,
-                }
-            except (CircuitOpenError, ModelTimeoutError):
+            if self._model is None or self._model_breaker is None:
                 response_body = {
                     "decision_id": decision_id,
                     "decision": rule_result["decision"],
                     "score": None,
                     "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
                     "stage": "rules_fallback",
-                    "latency_ms": 18,
+                    "latency_ms": 0,
                 }
+            else:
+                try:
+                    score = self._model_breaker.call(self._model.predict_probability, feature_values)
+                    model_version = self._model.version
+                    response_body = {
+                        "decision_id": decision_id,
+                        "decision": "review" if score >= self._model.threshold else "approve",
+                        "score": score,
+                        "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+                        "stage": rule_result["stage"],
+                        "latency_ms": 0,
+                    }
+                except (CircuitOpenError, ModelTimeoutError):
+                    response_body = {
+                        "decision_id": decision_id,
+                        "decision": rule_result["decision"],
+                        "score": None,
+                        "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+                        "stage": "rules_fallback",
+                        "latency_ms": 0,
+                    }
         else:
             response_body = {
                 "decision_id": decision_id,
@@ -143,8 +154,10 @@ class PostgresStore:
                 "score": None,
                 "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
                 "stage": rule_result["stage"],
-                "latency_ms": 18,
+                "latency_ms": 0,
             }
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        response_body["latency_ms"] = float(elapsed_ms)
         created_at = datetime.now(timezone.utc)
 
         with self._pool.connection() as connection:

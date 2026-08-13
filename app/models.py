@@ -24,4 +24,4 @@ class TransactionResponse(BaseModel):
     score: float | None
     reasons: list[str]
     stage: str
-    latency_ms: int
+    latency_ms: float

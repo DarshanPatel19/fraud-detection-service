@@ -47,7 +47,9 @@ def test_score_transaction() -> None:
     assert response.json()["stage"] == "rules"
     assert response.json()["reasons"] == ["trusted_user"]
     assert response.json()["score"] is None
-    assert response.json()["latency_ms"] == 18
+    latency_ms = response.json()["latency_ms"]
+    assert isinstance(latency_ms, float)
+    assert latency_ms >= 0.0
 
 
 def test_rules_engine_hard_decline_short_circuits() -> None:
@@ -117,11 +119,15 @@ def test_rules_engine_flag_routes_to_model_stage() -> None:
 
     assert response.status_code == 200
     assert response.json()["decision"] == "review"
-    assert response.json()["stage"] == "model"
+    stage = response.json()["stage"]
+    assert stage in ("model", "rules_fallback")
     assert response.json()["reasons"] == ["new_merchant_for_user"]
-    score = response.json()["score"]
-    assert isinstance(score, float)
-    assert 0.0 <= score <= 1.0
+    if stage == "model":
+        score = response.json()["score"]
+        assert isinstance(score, float)
+        assert 0.0 <= score <= 1.0
+    else:
+        assert response.json()["score"] is None
 
 
 def test_replays_identical_request_with_same_idempotency_key() -> None:

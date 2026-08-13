@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import logging
 import os
 from collections.abc import AsyncIterator
 
@@ -12,6 +13,8 @@ from app.model import load_model
 from app.models import TransactionRequest, TransactionResponse
 from app.store import PostgresStore, StoreConflictError
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -22,12 +25,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     max_duration_ms = float(os.environ.get("MODEL_BREAKER_MAX_DURATION_MS", "20"))
     pool = ConnectionPool(conninfo=database_url, min_size=1, max_size=5, open=False)
     pool.open()
-    app.state.model = load_model(model_path)
     app.state.model_breaker = CircuitBreaker(
         failure_threshold=failure_threshold,
         recovery_timeout=recovery_timeout,
         max_duration_seconds=max_duration_ms / 1000.0,
     )
+    try:
+        app.state.model = load_model(model_path)
+    except FileNotFoundError as exc:
+        logger.warning("model artifact not found at %s, starting in rules-only mode", model_path)
+        app.state.model = None
+        app.state.model_breaker.open()
     app.state.store = PostgresStore(pool, model=app.state.model, model_breaker=app.state.model_breaker)
     try:
         yield

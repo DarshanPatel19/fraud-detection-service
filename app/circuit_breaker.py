@@ -50,6 +50,12 @@ class CircuitBreaker:
             self._state = "closed"
             self._open_until = 0.0
 
+    def open(self) -> None:
+        with self._lock:
+            self._state = "open"
+            self._open_until = time.monotonic() + self._recovery_timeout
+            self._failures = 0
+
     def record_failure(self) -> None:
         with self._lock:
             if self._state == "half_open":
