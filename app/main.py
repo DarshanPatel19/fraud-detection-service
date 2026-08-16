@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 import logging
 import os
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     try:
         app.state.model = load_model(model_path)
-    except FileNotFoundError as exc:
+    except FileNotFoundError:
         logger.warning("model artifact not found at %s, starting in rules-only mode", model_path)
         app.state.model = None
         app.state.model_breaker.open()

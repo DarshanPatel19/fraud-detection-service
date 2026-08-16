@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import fakeredis
 
@@ -11,7 +11,7 @@ def test_compute_features_basic() -> None:
     fake = fakeredis.FakeRedis()
     store = FeatureStore(client=fake)
 
-    ts = int(datetime.utcnow().timestamp())
+    ts = int(datetime.now(timezone.utc).timestamp())
     features = store.compute_features(
         user_id="u_test",
         transaction_id="txn1",

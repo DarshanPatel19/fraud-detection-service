@@ -2,19 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-import psycopg
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
+from app.circuit_breaker import CircuitBreaker, CircuitOpenError, ModelTimeoutError
 from app.feature_store import FeatureStore
 from app.model import ModelArtifact
-from app.circuit_breaker import CircuitOpenError, CircuitBreaker, ModelTimeoutError
 from app.models import TransactionRequest, TransactionResponse
 from app.rules import RulesEngine
 

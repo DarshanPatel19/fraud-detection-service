@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import os
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 from psycopg_pool import ConnectionPool
 
 from app.models import TransactionRequest
 from app.store import PostgresStore
-
 
 RUN_INTEGRATION = bool(os.environ.get("RUN_INTEGRATION"))
 
@@ -30,7 +29,7 @@ def test_idempotency_concurrent() -> None:
         merchant_category="electronics",
         device_id="d_1",
         ip_country="US",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
     )
 
     responses = []

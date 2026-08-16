@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import joblib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import PrecisionRecallDisplay, auc, precision_recall_curve, precision_score, recall_score
+from sklearn.metrics import auc, precision_recall_curve, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 
 
@@ -123,7 +122,7 @@ def main() -> None:
     artifact = {
         "classifier": model,
         "threshold": threshold,
-        "version": f"v1.0",
+        "version": "v1.0",
         "feature_order": [
             "velocity_1h",
             "velocity_24h",

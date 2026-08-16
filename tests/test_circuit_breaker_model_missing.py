@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
 
 from app.circuit_breaker import CircuitBreaker
-from app.main import app
 from app.model import load_model
 
 

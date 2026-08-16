@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import uuid
 import datetime
 import random
+import uuid
 
 from locust import HttpUser, between, task
 

@@ -7,3 +7,4 @@ SPEC.md
 reports/
 .pytest_cache/
 *.joblib
+CLAUDE.md
