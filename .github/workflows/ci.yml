@@ -26,10 +26,10 @@ jobs:
           --health-cmd "redis-cli ping || exit 1"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -42,9 +42,9 @@ jobs:
         run: |
           ruff check .
 
-      - name: Wait for services
+      - name: Train model artifact
         run: |
-          sleep 10
+          python scripts/train_model.py
 
       - name: Run tests
         env:
