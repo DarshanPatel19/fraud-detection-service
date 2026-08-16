@@ -4,8 +4,10 @@ from contextlib import asynccontextmanager
 import logging
 import os
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from psycopg_pool import ConnectionPool
 
 from app.circuit_breaker import CircuitBreaker
@@ -47,6 +49,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Fraud Detection Service", lifespan=lifespan)
+
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+app.mount("/demo", StaticFiles(directory=STATIC_DIR, html=True), name="demo")
 
 
 @app.get("/health")

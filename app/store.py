@@ -101,6 +101,7 @@ class PostgresStore:
             connection.commit()
 
     def score_transaction(self, req: TransactionRequest) -> TransactionResponse:
+        start_time = time.perf_counter()
         request_hash = _request_hash(req.model_dump())
         decision_id = f"dec_{uuid.uuid4().hex[:12]}"
         feature_values = self._feature_store.compute_features(
@@ -115,16 +116,16 @@ class PostgresStore:
         rule_result = self._rules.evaluate(req.model_dump(), feature_values)
         model_version = None
         score = None
-        start_time = time.perf_counter()
         if rule_result["stage"] == "model":
             if self._model is None or self._model_breaker is None:
                 response_body = {
                     "decision_id": decision_id,
                     "decision": rule_result["decision"],
                     "score": None,
-                    "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+                    "reasons": rule_result["reasons"],
                     "stage": "rules_fallback",
                     "latency_ms": 0,
+                    "features": feature_values,
                 }
             else:
                 try:
@@ -134,27 +135,30 @@ class PostgresStore:
                         "decision_id": decision_id,
                         "decision": "review" if score >= self._model.threshold else "approve",
                         "score": score,
-                        "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+                        "reasons": rule_result["reasons"],
                         "stage": rule_result["stage"],
                         "latency_ms": 0,
+                        "features": feature_values,
                     }
                 except (CircuitOpenError, ModelTimeoutError):
                     response_body = {
                         "decision_id": decision_id,
                         "decision": rule_result["decision"],
                         "score": None,
-                        "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+                        "reasons": rule_result["reasons"],
                         "stage": "rules_fallback",
                         "latency_ms": 0,
+                        "features": feature_values,
                     }
         else:
             response_body = {
                 "decision_id": decision_id,
                 "decision": rule_result["decision"],
                 "score": None,
-                "reasons": rule_result["reasons"] or ["velocity_1h_exceeded", "new_merchant_for_user"],
+                "reasons": rule_result["reasons"],
                 "stage": rule_result["stage"],
                 "latency_ms": 0,
+                "features": feature_values,
             }
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         response_body["latency_ms"] = float(elapsed_ms)

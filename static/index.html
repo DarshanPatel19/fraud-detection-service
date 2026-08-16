@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Checkout Demo</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f9f9f7;
+    --surface-1: #ffffff;
+    --surface-2: #f2f1ee;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --border: rgba(11, 11, 11, 0.10);
+    --border-strong: #c3c2b7;
+    --accent: #2a78d6;
+    --accent-ink: #ffffff;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --warning-ink: #96690a;
+    --critical: #d03b3b;
+    --good-bg: rgba(12, 163, 12, 0.12);
+    --warning-bg: rgba(250, 178, 25, 0.18);
+    --critical-bg: rgba(208, 59, 59, 0.12);
+    --true-bg: rgba(42, 120, 214, 0.12);
+    --true-ink: #1c5cab;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #0d0d0d;
+      --surface-1: #1a1a19;
+      --surface-2: #232322;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --border: rgba(255, 255, 255, 0.10);
+      --border-strong: #383835;
+      --accent: #3987e5;
+      --good: #0ca30c;
+      --warning: #fab219;
+      --warning-ink: #fab219;
+      --critical: #e66767;
+      --good-bg: rgba(12, 163, 12, 0.18);
+      --warning-bg: rgba(250, 178, 25, 0.20);
+      --critical-bg: rgba(230, 103, 103, 0.18);
+      --true-bg: rgba(57, 135, 229, 0.18);
+      --true-ink: #86b6ef;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  body {
+    padding: 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  header h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  header p { margin: 0; color: var(--text-secondary); font-size: 0.85rem; }
+
+  .view-switch {
+    display: inline-flex;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 3px;
+    background: var(--surface-1);
+    flex: none;
+  }
+  .view-switch button {
+    border: none;
+    background: transparent;
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-radius: 999px;
+    cursor: pointer;
+    color: var(--text-secondary);
+  }
+  .view-switch button.active {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(300px, 400px) 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .stage { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .panel h2 {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin: 0 0 12px;
+  }
+
+  /* checkout card */
+  .checkout-card { padding: 22px; }
+  .checkout-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .checkout-eyebrow {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .ghost-btn {
+    font: inherit;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--accent);
+    font-size: 0.76rem;
+    font-weight: 600;
+    padding: 2px 0;
+  }
+  .ghost-btn:hover { text-decoration: underline; }
+  .ghost-btn:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+  }
+  select, input[type="number"] {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-1);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+  }
+  select:focus, input:focus, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .amount-input-wrap {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .amount-input-wrap .prefix {
+    padding: 9px 0 9px 12px;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+  .amount-input-wrap input {
+    border: none;
+    padding: 9px 10px 9px 4px;
+  }
+  .amount-input-wrap input:focus { outline: none; }
+
+  .pay-btn {
+    width: 100%;
+    padding: 13px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .pay-btn:hover { opacity: 0.92; }
+  .pay-btn:disabled { opacity: 0.5; cursor: default; }
+
+  /* terminal */
+  .terminal {
+    margin-top: 18px;
+    border-radius: 12px;
+    background: #16171a;
+    padding: 22px 18px;
+    text-align: center;
+    transition: box-shadow 0.15s ease;
+  }
+  .terminal .terminal-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    margin: 0 auto 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .terminal .terminal-icon svg { width: 22px; height: 22px; }
+  .terminal .terminal-label {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f4f4f2;
+  }
+  .terminal .terminal-sub {
+    font-size: 0.8rem;
+    color: #a4a4a0;
+    margin-top: 5px;
+    min-height: 1.1em;
+  }
+  .terminal.state-idle .terminal-icon { background: rgba(255,255,255,0.08); color: #8b8b87; }
+  .terminal.state-processing .terminal-icon { background: rgba(255,255,255,0.08); }
+  .terminal.state-approve .terminal-icon { background: rgba(12,163,12,0.18); color: var(--good); }
+  .terminal.state-approve .terminal-label { color: var(--good); }
+  .terminal.state-review .terminal-icon { background: rgba(250,178,25,0.18); color: var(--warning); }
+  .terminal.state-review .terminal-label { color: var(--warning); }
+  .terminal.state-decline .terminal-icon { background: rgba(224,90,90,0.18); color: #ef6a6a; }
+  .terminal.state-decline .terminal-label { color: #ef6a6a; }
+  .terminal.state-error .terminal-icon { background: rgba(224,90,90,0.18); color: #ef6a6a; }
+  .terminal.state-error .terminal-label { color: #ef6a6a; }
+
+  .spinner {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: #f4f4f2;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* scenarios */
+  .scenario-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .scenario-buttons button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text-primary);
+    padding: 9px 12px;
+    font-size: 0.82rem;
+    text-align: left;
+  }
+  .scenario-buttons button:hover { border-color: var(--accent); }
+  .scenario-buttons button:disabled { opacity: 0.5; cursor: default; }
+
+  /* dev panel */
+  .dev-panel { display: none; margin-top: 18px; }
+  body.dev-mode .dev-panel { display: block; }
+
+  .dev-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 640px) {
+    .dev-grid { grid-template-columns: 1fr; }
+  }
+  .dev-grid h3, .dev-panel h3 {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    margin: 0 0 6px;
+  }
+  pre.code-block {
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    overflow-x: auto;
+    margin: 0;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .stat-tile {
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat-tile .label {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .stat-tile .value {
+    font-size: 0.98rem;
+    font-weight: 600;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .flag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 600;
+  }
+  .flag-pill.on { background: var(--true-bg); color: var(--true-ink); }
+  .flag-pill.off { background: var(--surface-2); color: var(--text-muted); }
+
+  .empty-state { color: var(--text-muted); font-size: 0.85rem; }
+
+  /* transaction feed */
+  .feed-panel { margin-top: 18px; }
+  .feed-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .feed-head h2 { margin: 0; }
+  .feed-head button {
+    font-size: 0.72rem;
+    padding: 5px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .feed-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .feed-row:last-child { border-bottom: none; }
+  .feed-icon {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .feed-icon svg { width: 15px; height: 15px; }
+  .feed-icon.approve { background: var(--good-bg); color: var(--good); }
+  .feed-icon.review { background: var(--warning-bg); color: var(--warning-ink); }
+  .feed-icon.decline { background: var(--critical-bg); color: var(--critical); }
+  .feed-main { flex: 1; min-width: 0; }
+  .feed-merchant { font-size: 0.88rem; font-weight: 600; }
+  .feed-time { font-size: 0.74rem; color: var(--text-muted); }
+  .feed-right { text-align: right; flex: none; }
+  .feed-amount { font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .feed-outcome { font-size: 0.74rem; }
+  .feed-outcome.approve { color: var(--good); }
+  .feed-outcome.review { color: var(--warning-ink); }
+  .feed-outcome.decline { color: var(--critical); }
+  :root:not([data-theme="light"]) .feed-outcome.review { color: var(--warning); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Checkout Demo</h1>
+    <p>Every payment below calls the real <code>POST /v1/transactions/score</code> endpoint.</p>
+  </div>
+  <div class="view-switch">
+    <button type="button" id="btn-customer-view" class="active">Customer view</button>
+    <button type="button" id="btn-dev-view">Developer view</button>
+  </div>
+</header>
+
+<div class="stage">
+  <div>
+    <div class="panel checkout-card">
+      <div class="checkout-card-head">
+        <span class="checkout-eyebrow">Checkout</span>
+        <button type="button" id="new-customer-btn" class="ghost-btn">New customer</button>
+      </div>
+      <div class="field">
+        <label for="merchant-select">Pay to</label>
+        <select id="merchant-select"></select>
+      </div>
+      <div class="field">
+        <label for="amount-input">Amount</label>
+        <div class="amount-input-wrap">
+          <span class="prefix">$</span>
+          <input id="amount-input" type="number" min="0.01" step="0.01" value="25.00" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="country-select">Card country</label>
+        <select id="country-select"></select>
+      </div>
+      <button type="button" class="pay-btn" id="pay-btn">Pay now</button>
+
+      <div class="terminal state-idle" id="terminal">
+        <div class="terminal-icon" id="terminal-icon"></div>
+        <div class="terminal-label" id="terminal-label">Ready to pay</div>
+        <div class="terminal-sub" id="terminal-sub">Choose an amount and press Pay now.</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>Try a scenario</h2>
+      <div class="scenario-buttons">
+        <button type="button" data-scenario="coffee">Regular coffee purchase</button>
+        <button type="button" data-scenario="large">Unusually large purchase</button>
+        <button type="button" data-scenario="abroad">Card used abroad on a new device</button>
+        <button type="button" data-scenario="rapid">Rapid-fire purchases</button>
+        <button type="button" data-scenario="retry">Duplicate charge from a retry</button>
+      </div>
+    </div>
+
+    <div class="panel dev-panel" id="dev-panel">
+      <h2>Developer view</h2>
+
+      <div class="stat-row">
+        <div class="stat-tile">
+          <div class="label">Stage</div>
+          <div class="value" id="dev-stage">&ndash;</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">Latency</div>
+          <div class="value" id="dev-latency">&ndash;</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">Rules fired</div>
+          <div class="value" id="dev-reasons">&ndash;</div>
+        </div>
+      </div>
+
+      <h3>Computed features</h3>
+      <div id="dev-features-empty" class="empty-state">No transaction yet.</div>
+      <div id="dev-features" class="features-grid" style="display:none; margin-bottom:16px;"></div>
+
+      <div class="dev-grid">
+        <div>
+          <h3>Request</h3>
+          <pre class="code-block" id="dev-request">No transaction yet.</pre>
+        </div>
+        <div>
+          <h3>Response</h3>
+          <pre class="code-block" id="dev-response">No transaction yet.</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel feed-panel">
+  <div class="feed-head">
+    <h2>Transaction feed</h2>
+    <button type="button" id="clear-feed">Clear</button>
+  </div>
+  <div id="feed-empty" class="empty-state">No transactions yet this session.</div>
+  <div id="feed-list"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var MERCHANTS = [
+    { id: "m_552", name: "Blue Bottle Coffee", category: "coffee" },
+    { id: "m_101", name: "Amazon", category: "retail" },
+    { id: "m_204", name: "Delta Airlines", category: "travel" },
+    { id: "m_777", name: "Local Bodega", category: "groceries" },
+  ];
+
+  var COUNTRIES = [
+    { code: "US", name: "United States" },
+    { code: "GB", name: "United Kingdom" },
+    { code: "DE", name: "Germany" },
+    { code: "FR", name: "France" },
+    { code: "JP", name: "Japan" },
+    { code: "BR", name: "Brazil" },
+    { code: "CA", name: "Canada" },
+  ];
+  var ABROAD_COUNTRIES = ["GB", "DE", "FR", "JP", "BR", "CA"];
+
+  var ICONS = {
+    approve: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l3.5 3.5L13 5"/></svg>',
+    review: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5.5v4M8 12h.01M2 13h12L8 3z" stroke-linejoin="round"/></svg>',
+    decline: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+    error: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  };
+
+  var DECISION_COPY = {
+    approve: { label: "Approved", sub: function (m) { return "Your payment to " + m + " went through."; } },
+    review: { label: "Additional verification needed", sub: function () { return "We need to double-check this one before it clears."; } },
+    decline: { label: "Declined", sub: function () { return "This payment could not be completed."; } },
+  };
+
+  var merchantSelect = document.getElementById("merchant-select");
+  var countrySelect = document.getElementById("country-select");
+  var amountInput = document.getElementById("amount-input");
+  var payBtn = document.getElementById("pay-btn");
+  var newCustomerBtn = document.getElementById("new-customer-btn");
+  var terminal = document.getElementById("terminal");
+  var terminalIcon = document.getElementById("terminal-icon");
+  var terminalLabel = document.getElementById("terminal-label");
+  var terminalSub = document.getElementById("terminal-sub");
+
+  MERCHANTS.forEach(function (m) {
+    var opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = m.name;
+    merchantSelect.appendChild(opt);
+  });
+  COUNTRIES.forEach(function (c) {
+    var opt = document.createElement("option");
+    opt.value = c.code;
+    opt.textContent = c.name;
+    countrySelect.appendChild(opt);
+  });
+
+  function merchantById(id) {
+    for (var i = 0; i < MERCHANTS.length; i++) {
+      if (MERCHANTS[i].id === id) return MERCHANTS[i];
+    }
+    return MERCHANTS[0];
+  }
+
+  function randomSuffix() {
+    return Math.random().toString(36).slice(2, 8);
+  }
+  function newId(prefix) {
+    return prefix + "_" + randomSuffix();
+  }
+  function pick(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+  function sleep(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+  function formatUSD(minorUnits) {
+    return "$" + (minorUnits / 100).toFixed(2);
+  }
+
+  // This browser session represents one logged-in customer with one regular
+  // device. A fresh device id is only generated when a scenario explicitly
+  // simulates a *different* device (the "abroad" story).
+  var SESSION_USER = newId("u_cust");
+  var regularDevice = newId("d_reg");
+
+  var lastSubmission = null; // { request, response }
+  var feed = [];
+  var busy = false;
+
+  function setBusy(value) {
+    busy = value;
+    payBtn.disabled = value;
+    newCustomerBtn.disabled = value;
+    document.querySelectorAll(".scenario-buttons button").forEach(function (btn) {
+      btn.disabled = value;
+    });
+  }
+
+  newCustomerBtn.addEventListener("click", function () {
+    if (busy) return;
+    // A fresh user_id means Redis has no velocity or novelty history for this
+    // customer yet, so the next payment starts from a clean slate.
+    SESSION_USER = newId("u_cust");
+    lastSubmission = null;
+    setTerminal("idle", "Ready to pay", "New customer — velocity and novelty history reset.");
+  });
+
+  function setTerminal(state, label, sub) {
+    terminal.className = "terminal state-" + state;
+    if (state === "processing") {
+      terminalIcon.innerHTML = '<span class="spinner"></span>';
+    } else {
+      terminalIcon.innerHTML = ICONS[state] || "";
+    }
+    terminalLabel.textContent = label;
+    terminalSub.textContent = sub || "";
+  }
+
+  function setFormControls(fields) {
+    merchantSelect.value = fields.merchantId;
+    amountInput.value = fields.amountDollars.toFixed(2);
+    countrySelect.value = fields.country;
+  }
+
+  function renderDev(request, response, error) {
+    document.getElementById("dev-request").textContent = JSON.stringify(request, null, 2);
+    document.getElementById("dev-response").textContent = error
+      ? JSON.stringify(error, null, 2)
+      : JSON.stringify(response, null, 2);
+
+    document.getElementById("dev-stage").textContent = response ? response.stage : "–";
+    document.getElementById("dev-latency").textContent = response ? response.latency_ms.toFixed(2) + " ms" : "–";
+    var reasons = response && response.reasons && response.reasons.length ? response.reasons.join(", ") : "none";
+    document.getElementById("dev-reasons").textContent = response ? reasons : "–";
+
+    var featuresEmpty = document.getElementById("dev-features-empty");
+    var featuresGrid = document.getElementById("dev-features");
+    var f = response && response.features;
+    if (!f) {
+      featuresEmpty.style.display = "block";
+      featuresGrid.style.display = "none";
+      return;
+    }
+    featuresEmpty.style.display = "none";
+    featuresGrid.style.display = "grid";
+    function pill(label, on) {
+      return '<span class="flag-pill ' + (on ? "on" : "off") + '">' + label + ": " + (on ? "yes" : "no") + "</span>";
+    }
+    featuresGrid.innerHTML = [
+      '<div class="stat-tile"><div class="label">Velocity 1h</div><div class="value">' + f.velocity_1h + "</div></div>",
+      '<div class="stat-tile"><div class="label">Velocity 24h</div><div class="value">' + f.velocity_24h + "</div></div>",
+      '<div class="stat-tile"><div class="label">Amount z-score</div><div class="value">' + Number(f.amount_zscore).toFixed(3) + "</div></div>",
+      '<div class="stat-tile">' + pill("New merchant", f.merchant_new) + "</div>",
+      '<div class="stat-tile">' + pill("New device", f.device_new) + "</div>",
+      '<div class="stat-tile">' + pill("New country", f.country_new) + "</div>",
+    ].join("");
+  }
+
+  function addFeedRow(merchantName, amountMinor, decision, time) {
+    feed.unshift({ merchantName: merchantName, amountMinor: amountMinor, decision: decision, time: time });
+    document.getElementById("feed-empty").style.display = "none";
+    var list = document.getElementById("feed-list");
+    var row = document.createElement("div");
+    row.className = "feed-row";
+    row.innerHTML =
+      '<div class="feed-icon ' + decision + '">' + ICONS[decision] + "</div>" +
+      '<div class="feed-main">' +
+        '<div class="feed-merchant">' + merchantName + "</div>" +
+        '<div class="feed-time">' + time.toLocaleTimeString() + "</div>" +
+      "</div>" +
+      '<div class="feed-right">' +
+        '<div class="feed-amount">' + formatUSD(amountMinor) + "</div>" +
+        '<div class="feed-outcome ' + decision + '">' + DECISION_COPY[decision].label + "</div>" +
+      "</div>";
+    list.insertBefore(row, list.firstChild);
+  }
+
+  document.getElementById("clear-feed").addEventListener("click", function () {
+    feed = [];
+    document.getElementById("feed-list").innerHTML = "";
+    document.getElementById("feed-empty").style.display = "block";
+  });
+
+  // Core payment call. `fields` supplies merchantId, amountDollars, country and
+  // an optional deviceId override; pass `replayRequest` to resend a prior
+  // request byte-for-byte (used by the "duplicate charge" story).
+  function submitPayment(fields, replayRequest) {
+    var merchant = merchantById(replayRequest ? replayRequest.merchant_id : fields.merchantId);
+    var request = replayRequest || {
+      transaction_id: newId("txn"),
+      idempotency_key: newId("key"),
+      user_id: SESSION_USER,
+      amount_minor: Math.round(fields.amountDollars * 100),
+      currency: "USD",
+      merchant_id: merchant.id,
+      merchant_category: merchant.category,
+      device_id: fields.deviceId || regularDevice,
+      ip_country: fields.country,
+      timestamp: new Date().toISOString(),
+    };
+
+    setTerminal("processing", "Processing…", "Contacting the payment processor.");
+
+    return fetch("/v1/transactions/score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    })
+      .then(function (res) {
+        return res.json().then(function (body) {
+          return { ok: res.ok, status: res.status, body: body };
+        });
+      })
+      .then(function (res) {
+        var merchantName = merchant.name;
+        if (!res.ok) {
+          setTerminal("error", "Something went wrong", res.body && res.body.detail ? res.body.detail : "Request failed (" + res.status + ").");
+          renderDev(request, null, res.body);
+          return null;
+        }
+        var response = res.body;
+        lastSubmission = { request: request, response: response };
+        var copy = DECISION_COPY[response.decision] || { label: response.decision, sub: function () { return ""; } };
+        setTerminal(response.decision, copy.label, copy.sub(merchantName));
+        renderDev(request, response, null);
+        addFeedRow(merchantName, request.amount_minor, response.decision, new Date());
+        return response;
+      })
+      .catch(function (err) {
+        setTerminal("error", "Network error", err.message);
+        return null;
+      });
+  }
+
+  payBtn.addEventListener("click", function () {
+    if (busy) return;
+    var dollars = parseFloat(amountInput.value);
+    if (!dollars || dollars <= 0) {
+      setTerminal("error", "Enter an amount", "Amount must be greater than zero.");
+      return;
+    }
+    setBusy(true);
+    submitPayment({
+      merchantId: merchantSelect.value,
+      amountDollars: dollars,
+      country: countrySelect.value,
+    }).finally(function () { setBusy(false); });
+  });
+
+  var scenarios = {
+    coffee: function () {
+      var fields = { merchantId: "m_552", amountDollars: 4.50, country: "US" };
+      setFormControls(fields);
+      setBusy(true);
+      return submitPayment(fields).finally(function () { setBusy(false); });
+    },
+    large: function () {
+      var fields = { merchantId: "m_204", amountDollars: 1500.00, country: "US" };
+      setFormControls(fields);
+      setBusy(true);
+      return submitPayment(fields).finally(function () { setBusy(false); });
+    },
+    abroad: function () {
+      var fields = {
+        merchantId: "m_101",
+        amountDollars: 120.00,
+        country: pick(ABROAD_COUNTRIES),
+        deviceId: newId("d_new"),
+      };
+      setFormControls(fields);
+      setBusy(true);
+      return submitPayment(fields).finally(function () { setBusy(false); });
+    },
+    rapid: function () {
+      setBusy(true);
+      var fields = { merchantId: "m_777", amountDollars: 18.00, country: "US" };
+      setFormControls(fields);
+      var i = 0;
+      function next() {
+        i += 1;
+        setTerminal("processing", "Processing…", "Purchase " + i + " of 6.");
+        return submitPayment(fields).then(function () {
+          if (i < 6) return sleep(350).then(next);
+        });
+      }
+      return next().finally(function () { setBusy(false); });
+    },
+    retry: function () {
+      setBusy(true);
+      function replay() {
+        var original = lastSubmission.request;
+        setFormControls({
+          merchantId: original.merchant_id,
+          amountDollars: original.amount_minor / 100,
+          country: original.ip_country,
+        });
+        setTerminal("processing", "Processing…", "Retrying a payment the network already delivered once.");
+        return submitPayment({}, original).then(function (response) {
+          if (response) {
+            setTerminal(response.decision, DECISION_COPY[response.decision].label, "Duplicate detected — the original charge was returned, so the card was not billed twice.");
+          }
+        });
+      }
+      var setup = lastSubmission
+        ? Promise.resolve()
+        : submitPayment({ merchantId: "m_101", amountDollars: 42.00, country: "US" });
+      return setup.then(replay).finally(function () { setBusy(false); });
+    },
+  };
+
+  document.querySelectorAll(".scenario-buttons button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var fn = scenarios[btn.getAttribute("data-scenario")];
+      if (fn) fn();
+    });
+  });
+
+  var btnCustomer = document.getElementById("btn-customer-view");
+  var btnDev = document.getElementById("btn-dev-view");
+  btnCustomer.addEventListener("click", function () {
+    document.body.classList.remove("dev-mode");
+    btnCustomer.classList.add("active");
+    btnDev.classList.remove("active");
+  });
+  btnDev.addEventListener("click", function () {
+    document.body.classList.add("dev-mode");
+    btnDev.classList.add("active");
+    btnCustomer.classList.remove("active");
+  });
+
+  setFormControls({ merchantId: "m_552", amountDollars: 25.00, country: "US" });
+})();
+</script>
+</body>
+</html>

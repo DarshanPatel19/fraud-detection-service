@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -25,3 +26,4 @@ class TransactionResponse(BaseModel):
     reasons: list[str]
     stage: str
     latency_ms: float
+    features: dict[str, Any] | None = None
